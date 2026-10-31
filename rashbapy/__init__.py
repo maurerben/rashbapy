@@ -8,6 +8,7 @@
    spin texture on a k-plane (Maurer et al., PRB 105, 155149 (2022)).
 """
 from .fit import FitResult, fit_model
+from .io import SpinTexture, read_spin_texture
 from .model import SpinSplittingModel
 from .symmetry import PlaneFrame, SymmetryInfo, allowed_terms, analyze_symmetry
 from .terms import HBAR2_2ME, TERM_NAMES, TERM_STRINGS
@@ -18,5 +19,5 @@ __version__ = "0.1.0"
 __all__ = [
     "SpinSplittingModel", "fit_model", "FitResult", "PlaneFrame", "SymmetryInfo",
     "analyze_symmetry", "allowed_terms", "plane_kgrid", "rashba_parameter",
-    "plot_spin_texture", "TERM_NAMES", "TERM_STRINGS", "HBAR2_2ME",
+    "plot_spin_texture", "read_spin_texture", "SpinTexture", "TERM_NAMES", "TERM_STRINGS", "HBAR2_2ME",
 ]

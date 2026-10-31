@@ -43,6 +43,18 @@ print(result.report())
 fitted = result.model                           # a SpinSplittingModel object
 ```
 
+### Reading VASP spin textures
+
+```python
+from rashbapy import read_spin_texture
+
+tex = read_spin_texture("spin_texture_band45.dat", "spin_texture_band46.dat")  # kx ky E Sx Sy Sz
+E, S = tex.pair(45, 46)                    # (N,2), (N,2,3), sorted by energy at each k
+k2, s2 = model.data_to_plane(tex.k_cartesian(kz=0.0), S)
+```
+
+`tex.band(i)` returns one band; `tex.k_cartesian()` assumes the file's kx, ky are Cartesian (1/Å, with 2π) on the kz plane you give. See `examples/example_vasp_spin_texture.py`.
+
 Ready-made models: `SpinSplittingModel.rashba`, `.dresselhaus`, `.modified_rashba`, `.weyl`, `.rashba_dresselhaus`, `.mj1`, `.mj2`, `.mj3`, `.mj4`, `.general`, or `SpinSplittingModel(terms=[...])`.
 
 A model object provides:
@@ -61,6 +73,13 @@ Conventions: H = e0 + ħ²q²/2m* + h(q)·σ, energies in eV, k in Å⁻¹ (incl
 * Linear in k only, with an isotropic kinetic term. Cubic terms are not included, so fit close to the k-point (`k_max`).
 * Non-magnetic by default; `time_reversal=False` drops T-based constraints.
 * Without spin data the fit warns: energies alone cannot distinguish Rashba from Dresselhaus or the ±π/4-rotated pairs.
+
+## References
+
+If you use rashbapy, please cite the works it builds on:
+
+1. M. C. Mohanta and P. Jena *et al.*, Phys. Rev. B **111**, 045140 (2025), [doi:10.1103/PhysRevB.111.045140](https://doi.org/10.1103/PhysRevB.111.045140). Symmetry-allowed term basis (Rashba, Dresselhaus, modified Rashba, Weyl, …) and the Rashba parameter from a band cut.
+2. B. Maurer *et al.*, Phys. Rev. B **105**, 155149 (2022), [doi:10.1103/PhysRevB.105.155149](https://doi.org/10.1103/PhysRevB.105.155149). Fitting of spin-splitting models to energies and spin textures.
 
 ## Tests
 

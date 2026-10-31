@@ -184,3 +184,20 @@ def test_maurer_parameters_mj1_equals_rd():
     assert np.isclose(mp["lambda_R"], -1.0) and np.isclose(abs(mp["lambda_D"]), 0.99)
     rd = Model.rashba_dresselhaus(0.3, 0.2).maurer_parameters()
     assert np.allclose([rd["lambda_R"], rd["lambda_D"], rd["angle"]], [-0.3, 0.2, 0])
+
+
+# ---------------------------------------------------------------- io
+def test_read_spin_texture(tmp_path):
+    from rashbapy import read_spin_texture
+    f = tmp_path / "st.dat"
+    f.write_text("#kx ky E Sx Sy Sz\n#Grid-Size: 2 1\n#Band-Index: 7\n"
+                 "0 0 1.0 0.1 0.2 0.3\n0.5 0 2.0 0 1 0\n"
+                 "#Band-Index: 8\n0 0 0.5 1 0 0\n0.5 0 2.5 0 -1 0\n")
+    tex = read_spin_texture(f)
+    assert tex.bands == [7, 8] and tex.grid_size == (2, 1)
+    assert tex.k_cartesian(kz=1.0).shape == (2, 3)
+    e, s = tex.pair(7, 8)  # sorted per k: at k=0 band 8 is lower
+    assert np.allclose(e, [[0.5, 1.0], [2.0, 2.5]])
+    assert np.allclose(s[0, 0], [1, 0, 0]) and np.allclose(s[1, 0], [0, 1, 0])
+    with pytest.raises(KeyError):
+        tex.band(1)
