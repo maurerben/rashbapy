@@ -201,3 +201,13 @@ def test_read_spin_texture(tmp_path):
     assert np.allclose(s[0, 0], [1, 0, 0]) and np.allclose(s[1, 0], [0, 1, 0])
     with pytest.raises(KeyError):
         tex.band(1)
+
+
+def test_read_spin_texture_files_and_glob(tmp_path):
+    from rashbapy import read_spin_texture
+    for b, e in ((45, 1.0), (46, 1.1)):
+        (tmp_path / f"band{b}.dat").write_text(
+            f"#Band-Index: {b}\n0 0 {e} 0 1 0\n0.5 0 {e} 0 -1 0\n")
+    two = read_spin_texture(tmp_path / "band45.dat", tmp_path / "band46.dat")
+    globbed = read_spin_texture(str(tmp_path / "band*.dat"))
+    assert two.bands == globbed.bands == [45, 46]

@@ -1,6 +1,8 @@
 """Readers for DFT output: VASP spin-texture files."""
 from dataclasses import dataclass
 
+from glob import glob
+
 import numpy as np
 
 
@@ -57,8 +59,10 @@ def read_spin_texture(*paths):
 
     Each band is a block introduced by ``#Band-Index:`` (and, optionally,
     ``#Grid-Size:``); a file may hold several blocks, and several files can be
-    passed to combine bands. All bands must share the same k-points.
+    passed to combine bands (glob patterns such as ``"SPIN_TEXTURE_*.dat"`` are
+    expanded and sorted). All bands must share the same k-points.
     """
+    paths = [q for p in paths for q in (sorted(glob(str(p))) or [p])]
     blocks, grid_size = [], None
     for path in paths:
         index, rows = None, None
