@@ -1,0 +1,19 @@
+[build-system]
+requires = ["setuptools>=64"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "rashbapy"
+version = "0.1.0"
+description = "Symmetry-derived Rashba/Dresselhaus/Weyl spin-splitting models and fitting to spin textures"
+readme = "README.md"
+requires-python = ">=3.9"
+dependencies = ["numpy", "scipy", "ase", "spglib>=2.0"]
+
+[project.optional-dependencies]
+molecules = ["pymatgen"]
+plot = ["matplotlib"]
+test = ["pytest"]
+
+[tool.setuptools]
+packages = ["rashbapy"]
