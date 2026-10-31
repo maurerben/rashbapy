@@ -57,7 +57,7 @@ def plot_spin_texture(model=None, band=1, k_max=0.1, n=15, ax=None,
         spins = model.spins(k)[:, band]
     k, spins = np.asarray(k), np.asarray(spins)
     col = spins[:, color_component]
-    if np.ptp(col) < 1e-6:  # no out-of-plane component: plain dark arrows
+    if np.max(np.abs(col)) < 0.2:  # no out-of-plane component: plain dark arrows
         q = ax.quiver(k[:, 0], k[:, 1], spins[:, 0], spins[:, 1], color="0.15",
                       pivot="mid", **quiver_kw)
     else:

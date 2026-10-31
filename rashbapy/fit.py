@@ -70,7 +70,7 @@ def _prepare_spins(spins, spin_band, n, threshold):
 
 def fit_model(model, k, energies, spins=None, spin_band=None, fit_e0=True,
               fit_mass=True, fit_k0=False, spin_weight=None, spin_threshold=0.05,
-              k_max=None, energy_weight=1.0):
+              k_max=None, energy_weight=1.0, energy_band=None):
     """Fit spin-orbit parameters (and e0, m*, optionally k0) of ``model``.
 
     Parameters
@@ -81,8 +81,10 @@ def fit_model(model, k, energies, spins=None, spin_band=None, fit_e0=True,
     k : (N, 2) array
         k-points in plane coordinates relative to the expansion point, 1/Å
         (use ``model.data_to_plane`` for Cartesian DFT data).
-    energies : (N, 2) array
-        Energies (eV) of the two spin-split bands (sorted internally).
+    energies : (N, 2) or (N,) array
+        Energies (eV) of the two spin-split bands (sorted internally). A 1D
+        array is a single band (``energy_band``); this needs spins to be
+        identifiable and the partner band is then not constrained.
     spins : (N, 2, 3) or (N, 3) array, optional
         Spin expectation values in the plane frame (normalisation irrelevant).
         Strongly recommended: energies alone cannot distinguish e.g. Rashba
@@ -94,15 +96,28 @@ def fit_model(model, k, energies, spins=None, spin_band=None, fit_e0=True,
         of half the splitting, so both data types count similarly.
     spin_threshold : float
         Ignore spins with |s| below this fraction of the maximum.
+    energy_band : 'lower' | 'upper'
+        Which branch the 1D ``energies`` belong to (also the default
+        ``spin_band``).
     k_max : float, optional
         Use only points with |k| <= k_max (linear models hold near k0).
     """
     k = np.asarray(k, float)
     if k.ndim != 2 or k.shape[1] != 2:
         raise ValueError("k must have shape (N, 2)")
-    E = np.sort(np.asarray(energies, float), axis=1)
-    if E.shape != (len(k), 2):
-        raise ValueError("energies must have shape (N, 2)")
+    energies = np.asarray(energies, float)
+    if energies.ndim == 1:
+        if energy_band not in ("lower", "upper"):
+            raise ValueError("1D energies need energy_band='lower'/'upper'")
+        cols = [0 if energy_band == "lower" else 1]
+        E = energies[:, None]
+        spin_band = spin_band or energy_band
+    else:
+        cols = [0, 1]
+        E = np.sort(energies, axis=1)
+    if E.shape != (len(k), len(cols)):
+        raise ValueError("energies must have shape (N, 2) or (N,)")
+    two = len(cols) == 2
     sel = np.ones(len(k), bool)
     if k_max is not None:
         sel = np.linalg.norm(k - model.k0, axis=1) <= k_max
@@ -117,13 +132,17 @@ def fit_model(model, k, energies, spins=None, spin_band=None, fit_e0=True,
                       "Dresselhaus) give identical bands; provide spins to resolve them")
 
     work = model.copy()
-    half = 0.5 * (E[:, 1] - E[:, 0])
-    eps = 0.5 * (E[:, 0] + E[:, 1])
-
-    # --- initial guess: kinetic part (linear least squares)
     q = k - work.k0
     q2 = np.sum(q ** 2, axis=1)
-    if fit_mass and fit_e0:
+    half = np.zeros(len(k))  # half the splitting (estimate for one band)
+    if two:
+        half = 0.5 * (E[:, 1] - E[:, 0])
+        eps = 0.5 * (E[:, 0] + E[:, 1])
+
+    # --- initial guess: kinetic part (linear least squares)
+    if not two:
+        e0, c = work.e0, work.curvature
+    elif fit_mass and fit_e0:
         (e0, c), *_ = np.linalg.lstsq(np.c_[np.ones_like(q2), q2], eps, rcond=None)
     elif fit_mass:
         e0 = work.e0
@@ -148,7 +167,23 @@ def fit_model(model, k, energies, spins=None, spin_band=None, fit_e0=True,
         else:
             theta = np.ones(p) / np.sqrt(p)
         hh = np.linalg.norm(np.einsum("npi,p->ni", G, theta), axis=1)
-        scale = np.dot(half, hh) / max(np.dot(hh, hh), 1e-300)
+        if two:
+            scale = np.dot(half, hh) / max(np.dot(hh, hh), 1e-300)
+        else:  # E = e0 + c q^2 +- scale*hh, linear in (scale, e0, c)
+            cols_a = [(1.0 if cols[0] else -1.0) * hh]
+            y = E[:, 0] - (0 if fit_e0 else e0) - (0 if fit_mass else c * q2)
+            if fit_e0:
+                cols_a.append(np.ones_like(q2))
+            if fit_mass:
+                cols_a.append(q2)
+            sol0 = np.linalg.lstsq(np.c_[tuple(cols_a)], y, rcond=None)[0]
+            scale = max(sol0[0], 1e-3)
+            i = 1
+            if fit_e0:
+                e0, i = sol0[i], i + 1
+            if fit_mass:
+                c = sol0[i]
+            half = scale * hh
         theta = theta * scale
     else:
         theta = np.zeros(0)
@@ -184,7 +219,7 @@ def fit_model(model, k, energies, spins=None, spin_band=None, fit_e0=True,
 
     def residuals(x):
         h, hn, Em = model_eval(x)
-        res = [energy_weight * (Em - E).ravel()]
+        res = [energy_weight * (Em[:, cols] - E).ravel()]
         u = h / np.maximum(hn, 1e-12)[:, None]
         for sg, us, m in spin_sets:
             res.append(spin_weight * (sg * u[m] - us[m]).ravel())
@@ -219,7 +254,7 @@ def fit_model(model, k, energies, spins=None, spin_band=None, fit_e0=True,
         params["k0"] = fitted.k0.tolist()
 
     h, hn, Em = model_eval(sol.x)
-    rms_e = float(np.sqrt(np.mean((Em - E) ** 2)))
+    rms_e = float(np.sqrt(np.mean((Em[:, cols] - E) ** 2)))
     angles = []
     u = h / np.maximum(hn, 1e-12)[:, None]
     for sg, us, m in spin_sets:
